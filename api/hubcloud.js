@@ -410,7 +410,7 @@ async function extractHubCloud(inputUrl) {
     const encodedU = toBase64(primaryStream.url);
     const encodedM = toBase64(primaryStream.type || "video/x-matroska");
     const encodedT = toBase64(rawHeader || "HubCloud Video");
-    playerUrl = `/hdhubplayer.html?u=${encodeURIComponent(encodedU)}&m=${encodeURIComponent(encodedM)}&t=${encodeURIComponent(encodedT)}`;
+    playerUrl = `/player.html?u=${encodeURIComponent(encodedU)}&m=${encodeURIComponent(encodedM)}&t=${encodeURIComponent(encodedT)}`;
 
     // Add alternate streams to player qualities
     const altStreams = streams.filter(
@@ -557,7 +557,7 @@ async function resolveQualities(qualitiesList, customTitle = "") {
   const encodedM = toBase64(primary.type || "video/x-matroska");
   const encodedT = toBase64(finalTitle);
 
-  let playerUrl = `/hdhubplayer.html?u=${encodeURIComponent(encodedU)}&m=${encodeURIComponent(encodedM)}&t=${encodeURIComponent(encodedT)}`;
+  let playerUrl = `/player.html?u=${encodeURIComponent(encodedU)}&m=${encodeURIComponent(encodedM)}&t=${encodeURIComponent(encodedT)}`;
 
   // Bind each quality to q1, q2, q3...
   successful.forEach((item, index) => {
@@ -632,7 +632,7 @@ export async function resolveMediaRecord(mediaId) {
   const encodedM = toBase64(mimeType);
   const encodedT = toBase64(title);
 
-  let playerUrl = `/hdhubplayer.html?u=${encodeURIComponent(encodedU)}&m=${encodeURIComponent(encodedM)}&t=${encodeURIComponent(encodedT)}`;
+  let playerUrl = `/player.html?u=${encodeURIComponent(encodedU)}&m=${encodeURIComponent(encodedM)}&t=${encodeURIComponent(encodedT)}`;
 
   // Bind qualities (q1..qn)
   if (qualitiesList.length > 0) {
@@ -698,121 +698,77 @@ function renderLoadingHtml(mediaId) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#000000">
-  <title>Loading Player...</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #000;
-      color: #fff;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      padding: 24px;
-    }
-    .loader-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: 16px;
-      max-width: 480px;
-      width: 100%;
-    }
-    .spinner {
-      width: 42px;
-      height: 42px;
-      border: 3.5px solid rgba(255, 255, 255, 0.16);
-      border-top-color: #3b82f6;
-      border-radius: 50%;
-      animation: spin 0.75s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    h1 {
-      font-size: 1.15rem;
-      font-weight: 600;
-      color: #f3f4f6;
-      line-height: 1.4;
-      overflow-wrap: anywhere;
-    }
-    .media-badge {
-      display: inline-block;
-      font-size: 0.75rem;
-      font-family: monospace;
-      color: #93c5fd;
-      background: rgba(59, 130, 246, 0.16);
-      border: 1px solid rgba(59, 130, 246, 0.35);
-      padding: 3px 8px;
-      border-radius: 6px;
-      margin-top: 6px;
-    }
-    #statusText {
-      font-size: 0.88rem;
-      color: rgba(255, 255, 255, 0.6);
-      line-height: 1.5;
-    }
-    .error-box {
-      display: none;
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #fca5a5;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      margin-top: 10px;
-      line-height: 1.4;
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kineflex Loading</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#000;color:#fff;font-family:'Sora',system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden}
+.loader{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;padding:20px;text-align:center;
+  background:radial-gradient(90% 70% at 50% 35%,#262626 0%,#000 72%);transition:opacity .6s ease}
+.loader.done{opacity:0;pointer-events:none}
+.lockup{display:flex;align-items:center;gap:22px;flex-wrap:wrap;justify-content:center}
+
+/* logo with spinning ring */
+.ring{position:relative;width:132px;height:132px;display:grid;place-items:center;animation:markIn 1s cubic-bezier(.2,.9,.3,1.2) both}
+.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(255,255,255,0),#fff);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+  animation:spin 1.4s linear infinite}
+.logo{width:110px;height:110px;border-radius:50%;display:block;object-fit:cover;animation:glow 2.4s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes markIn{0%{transform:scale(0) rotate(-270deg);opacity:0}100%{transform:none;opacity:1}}
+@keyframes glow{0%,100%{box-shadow:0 0 14px 0 rgba(255,255,255,.35)}50%{box-shadow:0 0 42px 8px rgba(255,255,255,.55)}}
+
+/* text */
+.word{display:flex;font-weight:800;font-size:clamp(46px,11vw,84px);letter-spacing:-.02em;line-height:1}
+.word span{display:inline-block;opacity:0;background:linear-gradient(100deg,#9a9a9a,#fff 45%,#cfcfcf);-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:letterIn .7s cubic-bezier(.2,.9,.3,1) both;animation-delay:calc(.5s + var(--i)*.08s)}
+@keyframes letterIn{0%{opacity:0;transform:translateY(50px) scale(.7);filter:blur(10px)}100%{opacity:1;transform:none;filter:blur(0)}}
+.tag{margin:0;font-weight:300;font-size:13px;letter-spacing:.34em;color:#9a9a9a;opacity:0;animation:fade .8s 1.5s ease both}
+@keyframes fade{to{opacity:1}}
+
+/* progress */
+.bar{width:min(240px,70vw);height:3px;border-radius:3px;background:#262626;overflow:hidden;opacity:0;animation:fade .6s 1.2s ease both}
+.bar i{display:block;height:100%;width:40%;border-radius:3px;background:linear-gradient(90deg,transparent,#fff,transparent);animation:run 1.3s ease-in-out infinite}
+@keyframes run{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+.status{margin:-14px 0 0;font-size:12px;letter-spacing:.3em;color:#777;text-transform:uppercase;opacity:0;animation:fade .6s 1.4s ease both}
+.status b{font-weight:300;display:inline-block;width:1.2em;text-align:left}
+@media (prefers-reduced-motion:reduce){.ring::before{animation-duration:6s}}
+</style>
 </head>
 <body>
-  <div class="loader-card">
-    <div class="spinner" id="spinner"></div>
-    <div>
-      <h1 id="titleText">Loading Video Stream</h1>
-      <span class="media-badge">#${escapeHtml(mediaId)}</span>
-    </div>
-    <p id="statusText">Resolving fastest server (T3 / Cloudflare R2)...</p>
-    <div class="error-box" id="errorBox"></div>
+<div class="loader" id="loader" role="status" aria-live="polite" aria-label="Loading Kineflex">
+  <div class="lockup">
+    <div class="ring"><img class="logo" src="https://cdn.imgpile.com/f/jZEV1qe_lg.webp" alt="Kineflex logo"></div>
+    <div class="word" id="word" aria-hidden="true"></div>
   </div>
+  <p class="tag">WATCH · FLEX · REPEAT</p>
+  <div class="bar"><i></i></div>
+  <p class="status">Loading<b id="dots"></b></p>
+</div>
 
-  <script>
-    (async () => {
-      const mediaId = "${escapeHtml(mediaId)}";
-      const statusText = document.getElementById("statusText");
-      const titleText = document.getElementById("titleText");
-      const errorBox = document.getElementById("errorBox");
-      const spinner = document.getElementById("spinner");
+<script>
+const BRAND = 'Kineflex';
+const word = document.getElementById('word');
+[...BRAND].forEach((ch,i)=>{
+  const s = document.createElement('span');
+  s.textContent = ch; s.style.setProperty('--i',i);
+  word.appendChild(s);
+});
+let n = 0;
+setInterval(()=>{ n = (n+1)%4; document.getElementById('dots').textContent = '.'.repeat(n); },400);
 
-      try {
-        const res = await fetch(\`/api/hubcloud?play=\${encodeURIComponent(mediaId)}&format=json\`);
-        const data = await res.json();
-
-        if (!res.ok || !data.success || !data.playerUrl) {
-          throw new Error(data.error || "No playable stream available");
-        }
-
-        if (data.title) {
-          titleText.textContent = data.title;
-        }
-
-        statusText.textContent = "Launching player...";
-        window.location.replace(data.playerUrl);
-      } catch (err) {
-        spinner.style.display = "none";
-        statusText.style.display = "none";
-        errorBox.style.display = "block";
-        errorBox.textContent = "Failed to load video: " + err.message;
-      }
-    })();
-  </script>
+// Call hideLoader() from your app when loading is finished.
+window.hideLoader = ()=>{
+  const l = document.getElementById('loader');
+  l.classList.add('done');
+  setTimeout(()=>l.remove(),700);
+};
+</script>
 </body>
 </html>`;
 }
