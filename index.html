@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>HDHub4u Cloud Streaming Hub</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 25, 42, 0.85);
+      --border: rgba(255, 255, 255, 0.1);
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background: radial-gradient(circle at 50% 15%, #172554, var(--bg) 75%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .container {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px;
+      max-width: 580px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    p.desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .play-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .play-card label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    input {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    }
+    button.play-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    button.play-btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+    .quick-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .quick-link-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+    .quick-link-btn:hover {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.4);
+      transform: translateY(-2px);
+    }
+    .link-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .link-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="badge">
+      <span>●</span> Vercel CloudStream Worker
+    </div>
+    <h1>HDHub4u Player & Resolver</h1>
+    <p class="desc">
+      Direct multi-quality streaming, HubCloud parallel link extractor, Blob Storage, and custom player launcher.
+    </p>
+
+    <!-- Quick Play by Media ID -->
+    <div class="play-card">
+      <label for="mediaIdInput">Play by Media ID (Blob Storage)</label>
+      <div class="input-row">
+        <input type="text" id="mediaIdInput" placeholder="Enter Media ID (e.g. 6672)" value="6672">
+        <button class="play-btn" onclick="launchPlay()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          Play
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Navigation Links -->
+    <div class="quick-links">
+      <a href="/launcher.html" class="quick-link-btn">
+        <span class="link-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+          Stream Launcher
+        </span>
+        <span class="link-sub">Extract HubCloud links & launch player</span>
+      </a>
+
+      <a href="/admin.html" class="quick-link-btn">
+        <span class="link-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Admin Dashboard
+        </span>
+        <span class="link-sub">Manage Blob Storage JSON records</span>
+      </a>
+    </div>
+
+    <div class="footer">
+      Powered by CloudStream HubCloud & Vercel Blob Storage
+    </div>
+  </div>
+
+  <script>
+    function launchPlay() {
+      const id = document.getElementById("mediaIdInput").value.trim();
+      if (!id) {
+        alert("Please enter a media ID");
+        return;
+      }
+      // Routes directly to /:id which shows the loading page and redirects to player
+      window.location.href = "/" + encodeURIComponent(id);
+    }
+
+    document.getElementById("mediaIdInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") launchPlay();
+    });
+  </script>
+</body>
+</html>

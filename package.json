@@ -1,0 +1,13 @@
+{
+  "name": "hubcloud-vercel-worker",
+  "version": "1.0.0",
+  "description": "HubCloud stream and link extractor with Blob Storage and Admin Dashboard for Vercel",
+  "type": "module",
+  "scripts": {
+    "test": "node test-hubcloud.js",
+    "start": "node test-hubcloud.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^0.27.1"
+  }
+}

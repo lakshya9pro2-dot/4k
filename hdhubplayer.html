@@ -1,0 +1,2569 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="description" content="Video player for HubCloud." />
+    <!-- noindex -->
+    <meta name="robots" content="noindex" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+
+    <meta name="theme-color" content="#000000" />
+
+    <title>HubCloud</title>
+
+    <script>
+      (() => {
+        try {
+          const raw = new URLSearchParams(location.search).get("t");
+
+          if (!raw) {
+            return;
+          }
+
+          let input = raw
+            .replace(/-/g, "+")
+            .replace(/_/g, "/")
+            .replace(/\s/g, "");
+
+          while (input.length % 4 !== 0) {
+            input += "=";
+          }
+
+          const title = new TextDecoder("utf-8").decode(
+            Uint8Array.from(atob(input), (char) => char.charCodeAt(0)),
+          );
+
+          if (!title) {
+            return;
+          }
+
+          document.title = title + " - HubCloud";
+
+          window.__hubTitle = title;
+        } catch {}
+      })();
+    </script>
+
+    <link rel="stylesheet" href="https://vjs.zencdn.net/8.23.4/video-js.css" />
+
+    <style>
+      /* v1.2.0 */
+      :root {
+        color-scheme: dark;
+
+        --title-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+      }
+
+      body {
+        position: fixed;
+        inset: 0;
+
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      #app {
+        position: fixed;
+        inset: 0;
+
+        width: 100vw;
+        width: 100dvw;
+
+        height: 100vh;
+        height: 100dvh;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        overflow: hidden;
+
+        background: #000;
+      }
+
+      /*
+     * This is the actual video viewport.
+     *
+     * JavaScript sets its dimensions so it always
+     * fits inside the available screen.
+     */
+      #playerContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        overflow: hidden;
+        background: #000;
+      }
+
+      #videoPlayer {
+        background: #000;
+      }
+
+      .video-js {
+        background: #000;
+      }
+
+      .video-js:focus,
+      .video-js:focus-visible,
+      .video-js .vjs-tech:focus,
+      .video-js .vjs-tech:focus-visible,
+      .video-js .vjs-control:focus,
+      .video-js .vjs-control:focus-visible,
+      video:focus,
+      video:focus-visible {
+        outline: none;
+        box-shadow: none;
+      }
+
+      .video-js .vjs-tech {
+        object-fit: contain;
+        background: #000;
+      }
+
+      /*
+     * Keep Video.js controls above the video
+     * and inside the player.
+     */
+      .video-js .vjs-control-bar {
+        z-index: 50;
+        display: flex;
+        visibility: visible;
+
+        height: 3.6em;
+
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      .video-js .vjs-big-play-button {
+        top: 50%;
+        left: 50%;
+
+        width: 1.7em;
+        height: 1.7em;
+
+        margin: 0;
+        border: 0;
+        border-radius: 50%;
+
+        line-height: 1.7em;
+        font-size: 3.2em;
+
+        background: rgba(20, 20, 20, 0.55);
+
+        transform: translate(-50%, -50%);
+      }
+
+      .video-js:hover .vjs-big-play-button,
+      .video-js .vjs-big-play-button:focus {
+        background: rgba(20, 20, 20, 0.72);
+      }
+
+      /*
+     * Title shown instantly from the URL, not after the
+     * player finishes loading.
+     */
+      #titleBar {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+
+        z-index: 60;
+
+        padding: calc(12px + env(safe-area-inset-top)) 16px 28px;
+
+        background: linear-gradient(rgba(0, 0, 0, 0.72), transparent);
+
+        pointer-events: none;
+
+        transition: opacity 0.25s ease;
+      }
+
+      #titleBar.faded {
+        opacity: 0;
+      }
+
+      #nowPlayingTitle {
+        margin: 0;
+
+        color: #fff;
+
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.35;
+
+        text-shadow: var(--title-shadow);
+
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /*
+     * Initial loading screen.
+     */
+      #bootLoader {
+        position: absolute;
+        inset: 0;
+
+        z-index: 100;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 24px;
+
+        background: #000;
+
+        transition:
+          opacity 0.25s ease,
+          visibility 0.25s ease;
+      }
+
+      #bootLoader.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .loader {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+
+        max-width: 560px;
+
+        color: #fff;
+        text-align: center;
+      }
+
+      #loaderTitle {
+        margin: 0;
+
+        max-width: 100%;
+
+        font-size: 17px;
+        font-weight: 600;
+        line-height: 1.4;
+
+        overflow-wrap: anywhere;
+      }
+
+      .spinner {
+        width: 38px;
+        height: 38px;
+
+        border: 3px solid rgba(255, 255, 255, 0.18);
+
+        border-top-color: #fff;
+
+        border-radius: 50%;
+
+        animation: spin 0.75s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #loadingText {
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 13px;
+      }
+
+      .chrome-note {
+        max-width: 340px;
+        margin: 6px 0 0;
+
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 12.5px;
+        line-height: 1.5;
+      }
+
+      /*
+     * Buffering indicator.
+     */
+      #buffering {
+        position: absolute;
+        inset: 0;
+
+        z-index: 40;
+
+        display: none;
+        align-items: center;
+        justify-content: center;
+
+        pointer-events: none;
+      }
+
+      #buffering.show {
+        display: flex;
+      }
+
+      /*
+     * Seek feedback.
+     */
+      #seekFeedback {
+        position: absolute;
+        inset: 0;
+
+        z-index: 45;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        pointer-events: none;
+      }
+
+      #seekToast {
+        padding: 12px 20px;
+
+        border-radius: 999px;
+
+        background: rgba(0, 0, 0, 0.72);
+
+        color: #fff;
+
+        font-size: 15px;
+        font-weight: 600;
+
+        opacity: 0;
+
+        transform: scale(0.9);
+
+        transition:
+          opacity 0.18s ease,
+          transform 0.18s ease;
+      }
+
+      #seekToast.show {
+        opacity: 1;
+
+        transform: scale(1);
+      }
+
+      /*
+     * Error screen.
+     */
+      #errorScreen {
+        position: absolute;
+        inset: 0;
+
+        z-index: 200;
+
+        display: none;
+
+        align-items: center;
+        justify-content: center;
+
+        padding: 24px;
+
+        background: #000;
+
+        color: #fff;
+
+        text-align: center;
+      }
+
+      #errorScreen.show {
+        display: flex;
+      }
+
+      .error-card {
+        max-width: 520px;
+        padding: 28px 24px;
+
+        border-radius: 16px;
+
+        background: #141414;
+      }
+
+      .error-card h1 {
+        margin: 0 0 10px;
+
+        font-size: 20px;
+      }
+
+      .error-card p {
+        margin: 0;
+
+        color: rgba(255, 255, 255, 0.65);
+
+        line-height: 1.5;
+      }
+
+      .error-card .chrome-note {
+        margin-top: 16px;
+      }
+
+      /*
+     * Fullscreen.
+     */
+      .video-js.vjs-fullscreen {
+        width: 100vw !important;
+        height: 100vh !important;
+
+        max-width: none !important;
+        max-height: none !important;
+      }
+
+      @media (max-width: 600px) {
+        .video-js .vjs-current-time,
+        .video-js .vjs-duration {
+          display: none;
+        }
+
+        .video-js .vjs-control {
+          min-width: 2.6em;
+        }
+      }
+
+      /*
+       * External Audio Menu & Button
+       */
+      .vjs-audio-track-control {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 3.6em;
+        height: 100%;
+        color: #fff;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .vjs-audio-track-btn {
+        background: transparent;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        outline: none;
+        transition: color 0.15s ease;
+      }
+
+      .vjs-audio-track-btn:hover {
+        color: #3b82f6;
+      }
+
+      .vjs-audio-menu {
+        position: absolute;
+        bottom: 100%;
+        right: 0;
+        margin-bottom: 8px;
+        background: rgba(18, 18, 22, 0.96);
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        padding: 6px 0;
+        min-width: 190px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        display: none;
+        flex-direction: column;
+        z-index: 120;
+      }
+
+      .vjs-audio-menu.show {
+        display: flex;
+      }
+
+      .vjs-audio-menu-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.45);
+        padding: 6px 14px 4px;
+        letter-spacing: 0.06em;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 4px;
+      }
+
+      .vjs-audio-menu-item {
+        background: transparent;
+        border: none;
+        color: #fff;
+        text-align: left;
+        padding: 8px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+
+      .vjs-audio-menu-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .vjs-audio-menu-item.active {
+        color: #3b82f6;
+        font-weight: 600;
+      }
+
+      .vjs-audio-menu-item .check {
+        font-size: 13px;
+        opacity: 0;
+      }
+
+      .vjs-audio-menu-item.active .check {
+        opacity: 1;
+      }
+
+      .vjs-audio-badge {
+        font-size: 10px;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: rgba(255, 255, 255, 0.85);
+      }
+
+      /*
+       * Video Quality Changer Menu & Button
+       */
+      .vjs-quality-control {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 3.6em;
+        height: 100%;
+        color: #fff;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .vjs-quality-btn {
+        background: transparent;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+        height: 100%;
+        padding: 0 8px;
+        outline: none;
+        transition: color 0.15s ease;
+      }
+
+      .vjs-quality-btn:hover {
+        color: #3b82f6;
+      }
+
+      .vjs-quality-current-label {
+        font-size: 11px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.16);
+        padding: 2px 5px;
+        border-radius: 4px;
+        letter-spacing: 0.02em;
+        line-height: 1;
+      }
+
+      .vjs-quality-menu {
+        position: absolute;
+        bottom: 100%;
+        right: 0;
+        margin-bottom: 8px;
+        background: rgba(18, 18, 22, 0.96);
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        padding: 6px 0;
+        min-width: 170px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        display: none;
+        flex-direction: column;
+        z-index: 120;
+      }
+
+      .vjs-quality-menu.show {
+        display: flex;
+      }
+
+      .vjs-quality-menu-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.45);
+        padding: 6px 14px 4px;
+        letter-spacing: 0.06em;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 4px;
+      }
+
+      .vjs-quality-menu-item {
+        background: transparent;
+        border: none;
+        color: #fff;
+        text-align: left;
+        padding: 8px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+
+      .vjs-quality-menu-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .vjs-quality-menu-item.active {
+        color: #3b82f6;
+        font-weight: 600;
+      }
+
+      .vjs-quality-menu-item .check {
+        font-size: 13px;
+        opacity: 0;
+      }
+
+      .vjs-quality-menu-item.active .check {
+        opacity: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app">
+      <div id="playerContainer">
+        <video
+          id="videoPlayer"
+          class="video-js vjs-big-play-centered"
+          controls
+          playsinline
+          webkit-playsinline
+          preload="auto"
+          muted
+          defaultMuted
+        ></video>
+
+        <!-- Container for synchronized external audio elements (au1..au4) -->
+        <div id="externalAudioContainer" style="position: absolute; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none;" aria-hidden="true"></div>
+
+        <div id="titleBar">
+          <h1 id="nowPlayingTitle">HubCloud</h1>
+        </div>
+
+        <!-- Initial loading screen -->
+        <div id="bootLoader">
+          <div class="loader">
+            <div class="spinner"></div>
+
+            <h1 id="loaderTitle">HubCloud</h1>
+
+            <div id="loadingText">Starting playback…</div>
+
+            <p class="chrome-note">
+              Please use Chrome to have the best support for this video format.
+              Other browsers can get stuck.
+            </p>
+          </div>
+        </div>
+
+        <!-- Buffering -->
+        <div id="buffering">
+          <div class="spinner"></div>
+        </div>
+
+        <!-- Seek feedback -->
+        <div id="seekFeedback">
+          <div id="seekToast">+10 seconds</div>
+        </div>
+
+        <!-- Error -->
+        <div id="errorScreen">
+          <div class="error-card">
+            <h1 id="errorTitle">Unable to play video</h1>
+
+            <p id="errorMessage">The video could not be loaded.</p>
+
+            <p class="chrome-note">
+              Please use Chrome to have the best support for this video format.
+              Other browsers can get stuck.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        const title = window.__hubTitle;
+
+        if (!title) {
+          return;
+        }
+
+        const loaderTitle = document.getElementById("loaderTitle");
+
+        const nowPlaying = document.getElementById("nowPlayingTitle");
+
+        if (loaderTitle) {
+          loaderTitle.textContent = title;
+        }
+
+        if (nowPlaying) {
+          nowPlaying.textContent = title;
+        }
+      })();
+    </script>
+
+    <script src="https://vjs.zencdn.net/8.23.4/video.min.js"></script>
+
+    <script>
+      (() => {
+        "use strict";
+
+        /* ---------------------------------------------
+         * Configuration
+         * ------------------------------------------- */
+
+        const SEEK_SECONDS = 10;
+        const VOLUME_STEP = 0.05;
+        const DOUBLE_TAP_DELAY = 300;
+
+        /* ---------------------------------------------
+         * DOM
+         * ------------------------------------------- */
+
+        const params = new URLSearchParams(window.location.search);
+
+        const videoElement = document.getElementById("videoPlayer");
+
+        const playerContainer = document.getElementById("playerContainer");
+
+        const bootLoader = document.getElementById("bootLoader");
+
+        const loadingText = document.getElementById("loadingText");
+
+        const loaderTitle = document.getElementById("loaderTitle");
+
+        const titleBar = document.getElementById("titleBar");
+
+        const nowPlayingTitle = document.getElementById("nowPlayingTitle");
+
+        const buffering = document.getElementById("buffering");
+
+        const seekToast = document.getElementById("seekToast");
+
+        const errorScreen = document.getElementById("errorScreen");
+
+        const errorTitle = document.getElementById("errorTitle");
+
+        const errorMessage = document.getElementById("errorMessage");
+
+        /* ---------------------------------------------
+         * State
+         * ------------------------------------------- */
+
+        let player = null;
+
+        let lastTapTime = 0;
+        let lastTapSide = null;
+
+        let seekToastTimer = null;
+
+        /* ---------------------------------------------
+         * Base64 decoder
+         *
+         * Supports:
+         * - normal Base64
+         * - URL-safe Base64
+         * ------------------------------------------- */
+
+        function decodeBase64(value) {
+          if (!value || typeof value !== "string") {
+            return "";
+          }
+
+          try {
+            let input = value
+              .replace(/-/g, "+")
+              .replace(/_/g, "/")
+              .replace(/\s/g, "");
+
+            while (input.length % 4 !== 0) {
+              input += "=";
+            }
+
+            const binary = atob(input);
+
+            const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+
+            return new TextDecoder("utf-8").decode(bytes);
+          } catch {
+            return "";
+          }
+        }
+
+        function decodeParam(value) {
+          if (!value || typeof value !== "string") {
+            return "";
+          }
+          const trimmed = value.trim();
+          if (
+            trimmed.startsWith("http://") ||
+            trimmed.startsWith("https://") ||
+            trimmed.startsWith("file://") ||
+            trimmed.startsWith("blob:") ||
+            trimmed.startsWith("data:") ||
+            trimmed.startsWith("./") ||
+            trimmed.startsWith("../") ||
+            trimmed.startsWith("/")
+          ) {
+            return trimmed;
+          }
+          if (/^[a-z]{2,3}(-[A-Z]{2})?$/i.test(trimmed)) {
+            return trimmed;
+          }
+          if (/[^A-Za-z0-9+/=_-]/.test(trimmed)) {
+            return trimmed;
+          }
+          const decoded = decodeBase64(trimmed);
+          if (decoded && /^[\x20-\x7E\t\r\n\u00A0-\uFFFF]+$/.test(decoded)) {
+            return decoded;
+          }
+          return trimmed;
+        }
+
+        function isValidUrl(url) {
+          if (!url || typeof url !== "string") return false;
+          const trimmed = url.trim();
+          if (!trimmed) return false;
+          if (
+            trimmed.startsWith("./") ||
+            trimmed.startsWith("../") ||
+            trimmed.startsWith("/")
+          ) {
+            return true;
+          }
+          try {
+            const base =
+              window.location.protocol === "file:"
+                ? window.location.href
+                : window.location.origin;
+            const parsed = new URL(trimmed, base);
+            return [
+              "http:",
+              "https:",
+              "file:",
+              "blob:",
+              "data:",
+            ].includes(parsed.protocol);
+          } catch {
+            return false;
+          }
+        }
+
+        function escapeHtml(str) {
+          if (!str) return "";
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        /* ---------------------------------------------
+         * Parameters
+         * ------------------------------------------- */
+
+        let videoUrl = decodeParam(params.get("u"));
+
+        const mimeType = decodeParam(params.get("m"));
+
+        const videoTitle =
+          window.__hubTitle || decodeParam(params.get("t")) || "HubCloud";
+
+        document.title = videoTitle + " - HubCloud";
+
+        if (loaderTitle) {
+          loaderTitle.textContent = videoTitle;
+        }
+
+        if (nowPlayingTitle) {
+          nowPlayingTitle.textContent = videoTitle;
+        }
+
+        /*
+         * Parse Video Qualities (q1, q2, q3, q4... up to q8)
+         */
+        const qualities = [];
+        for (let i = 1; i <= 8; i++) {
+          const raw = params.get(`q${i}`);
+          if (!raw) continue;
+
+          let url = "";
+          let label = "";
+
+          const decoded = decodeParam(raw);
+          if (decoded.includes("|")) {
+            const parts = decoded.split("|");
+            url = parts[0].trim();
+            label = (parts[1] || "").trim();
+          } else {
+            url = decoded;
+          }
+
+          if (!label) {
+            label = decodeParam(
+              params.get(`q${i}_label`) ||
+                params.get(`qlabel${i}`) ||
+                params.get(`qtitle${i}`) ||
+                params.get(`q${i}_name`) ||
+                "",
+            );
+          }
+
+          if (!label) {
+            label = `Quality ${i}`;
+          }
+
+          if (url && isValidUrl(url)) {
+            qualities.push({
+              id: i,
+              url,
+              label,
+            });
+          }
+        }
+
+        // If videoUrl was not explicitly provided, use q1 URL
+        if (!videoUrl && qualities.length > 0) {
+          videoUrl = qualities[0].url;
+        }
+
+        // If videoUrl exists and other qualities exist, make sure videoUrl is in qualities list
+        if (videoUrl && isValidUrl(videoUrl) && qualities.length > 0) {
+          const alreadyInQualities = qualities.some((q) => q.url === videoUrl);
+          if (!alreadyInQualities) {
+            const defLabel = decodeParam(
+              params.get("q_default_label") || params.get("qlabel") || "Default",
+            );
+            qualities.unshift({
+              id: 0,
+              url: videoUrl,
+              label: defLabel,
+            });
+          }
+        }
+
+        /*
+         * Parse External Audio tracks (au1, au2, au3, au4...)
+         */
+        const audioTracks = [];
+        for (let i = 1; i <= 8; i++) {
+          const raw = params.get(`au${i}`);
+          if (!raw) continue;
+
+          let url = "";
+          let label = "";
+          let lang = "";
+
+          const decoded = decodeParam(raw);
+          if (decoded.includes("|")) {
+            const parts = decoded.split("|");
+            url = parts[0].trim();
+            label = (parts[1] || "").trim();
+            lang = (parts[2] || "").trim();
+          } else {
+            url = decoded;
+          }
+
+          if (!lang) {
+            lang = decodeParam(
+              params.get(`au${i}_lang`) || params.get(`aulang${i}`) || "",
+            );
+          }
+          if (!label) {
+            label = decodeParam(
+              params.get(`au${i}_label`) ||
+                params.get(`aulabel${i}`) ||
+                params.get(`autitle${i}`) ||
+                "",
+            );
+          }
+
+          if (!label) {
+            label = lang ? `Audio ${i} (${lang.toUpperCase()})` : `Audio ${i}`;
+          }
+
+          if (url && isValidUrl(url)) {
+            audioTracks.push({
+              id: i,
+              url,
+              label,
+              lang: lang || "und",
+              el: null,
+            });
+          }
+        }
+
+        /*
+         * Parse Subtitle tracks (su1, su2, su3, su4...)
+         */
+        const subtitleTracks = [];
+        for (let i = 1; i <= 8; i++) {
+          const raw = params.get(`su${i}`);
+          if (!raw) continue;
+
+          let url = "";
+          let label = "";
+          let lang = "";
+
+          const decoded = decodeParam(raw);
+          if (decoded.includes("|")) {
+            const parts = decoded.split("|");
+            url = parts[0].trim();
+            label = (parts[1] || "").trim();
+            lang = (parts[2] || "").trim();
+          } else {
+            url = decoded;
+          }
+
+          if (!lang) {
+            lang = decodeParam(
+              params.get(`su${i}_lang`) || params.get(`sulang${i}`) || "",
+            );
+          }
+          if (!label) {
+            label = decodeParam(
+              params.get(`su${i}_label`) ||
+                params.get(`sulabel${i}`) ||
+                params.get(`sutitle${i}`) ||
+                "",
+            );
+          }
+
+          const isDefParam =
+            params.get(`su${i}_default`) || params.get(`sudefault${i}`);
+          const isDefault =
+            isDefParam === "1" ||
+            isDefParam === "true" ||
+            (i === 1 &&
+              !params.get("nosudefault") &&
+              !params.get("no_default_sub"));
+
+          if (!label) {
+            label = lang
+              ? `Subtitle ${i} (${lang.toUpperCase()})`
+              : `Subtitle ${i}`;
+          }
+
+          if (url && isValidUrl(url)) {
+            subtitleTracks.push({
+              id: i,
+              url,
+              label,
+              lang: lang || "en",
+              isDefault: !!isDefault,
+            });
+          }
+        }
+
+        console.log(
+          "%c[HDHub Player]%c Initializing player...",
+          "color: #3b82f6; font-weight: bold;",
+          "color: inherit;",
+        );
+        console.log("[HDHub Player] Video URL:", videoUrl);
+        console.log("[HDHub Player] MIME Type:", mimeType);
+        console.log("[HDHub Player] Title:", videoTitle);
+        console.log(
+          `[HDHub Player] Loaded ${qualities.length} quality option(s):`,
+          qualities,
+        );
+        console.log(
+          `[HDHub Player] Loaded ${audioTracks.length} external audio track(s):`,
+          audioTracks,
+        );
+        console.log(
+          `[HDHub Player] Loaded ${subtitleTracks.length} subtitle track(s):`,
+          subtitleTracks,
+        );
+
+        /* ---------------------------------------------
+         * Validation
+         * ------------------------------------------- */
+
+        function isMatroska(mime, url) {
+          const type = (mime || "").toLowerCase();
+
+          const haystack = `${type} ${url || ""} ${videoTitle || ""}`;
+
+          return (
+            type.includes("matrosk") ||
+            type.includes("mkv") ||
+            /\.mkv(\b|$|\?|#|"|'|&)/i.test(haystack)
+          );
+        }
+
+        /*
+         * Video.js asks the browser canPlayType("video/x-matroska")
+         * and most browsers return "". It then shows
+         * "No compatible source" without fetching the file.
+         *
+         * This handler claims MKV so the HTML5 tech actually
+         * sets video.src and the browser requests the URL.
+         */
+        function allowMatroskaOnHtml5() {
+          const Html5Tech = videojs.getTech("Html5");
+
+          if (
+            !Html5Tech ||
+            typeof Html5Tech.registerSourceHandler !== "function"
+          ) {
+            return;
+          }
+
+          Html5Tech.registerSourceHandler(
+            {
+              canPlayType(type) {
+                return isMatroska(type, "") ? "maybe" : "";
+              },
+
+              canHandleSource(source) {
+                if (!source) {
+                  return "";
+                }
+
+                return isMatroska(source.type, source.src) ? "maybe" : "";
+              },
+
+              handleSource(source, tech) {
+                tech.setSrc(source.src);
+
+                return {
+                  dispose() {},
+                };
+              },
+            },
+            0,
+          );
+        }
+
+        function showError(title, message) {
+          errorTitle.textContent = title;
+
+          errorMessage.textContent = message;
+
+          errorScreen.classList.add("show");
+
+          bootLoader.classList.add("hidden");
+        }
+
+        if (!videoUrl) {
+          showError(
+            "Missing video URL",
+            "The parameter 'u' is missing or invalid.",
+          );
+
+          return;
+        }
+
+        if (!isValidUrl(videoUrl)) {
+          showError(
+            "Invalid video URL",
+            "Only HTTP and HTTPS URLs are supported.",
+          );
+
+          return;
+        }
+
+        if (!mimeType) {
+          showError(
+            "Missing MIME type",
+            "The parameter 'm' is missing or invalid.",
+          );
+
+          return;
+        }
+
+        if (typeof videojs === "undefined") {
+          showError(
+            "Player failed to load",
+            "Video.js could not be initialized.",
+          );
+
+          return;
+        }
+
+        allowMatroskaOnHtml5();
+
+        /* ---------------------------------------------
+         * External Audio & Subtitles Engine
+         * ------------------------------------------- */
+
+        const audioContainer = document.getElementById(
+          "externalAudioContainer",
+        );
+        let activeAudio = null;
+        let activeTrackId = null;
+        let currentAudioVolume = 1.0;
+        let currentAudioMuted = false;
+
+        function enforceVideoMuted() {
+          const techEl = getTechElement() || videoElement;
+          if (techEl) {
+            techEl.muted = true;
+            techEl.volume = 0;
+          }
+          if (videoElement) {
+            videoElement.muted = true;
+            videoElement.volume = 0;
+          }
+        }
+
+        videoElement.muted = true;
+        videoElement.defaultMuted = true;
+        videoElement.volume = 0;
+
+        function initExternalAudio() {
+          if (audioTracks.length === 0 || !audioContainer) return;
+          console.log(
+            `[Audio Engine] Initializing ${audioTracks.length} external audio tracks...`,
+          );
+
+          audioTracks.forEach((track, index) => {
+            let audioEl = document.getElementById(`extAudio_${track.id}`);
+            if (!audioEl) {
+              audioEl = document.createElement("audio");
+              audioEl.id = `extAudio_${track.id}`;
+              audioEl.preload = "auto";
+              audioEl.playsinline = true;
+              audioEl.setAttribute("playsinline", "");
+              audioEl.setAttribute("webkit-playsinline", "");
+              audioEl.src = track.url;
+              audioContainer.appendChild(audioEl);
+              console.log(
+                `[Audio Engine] Created <audio> element #extAudio_${track.id} for "${track.label}" (${track.lang}):`,
+                track.url,
+              );
+            }
+
+            track.el = audioEl;
+
+            audioEl.addEventListener("error", () => {
+              const err = audioEl.error;
+              let msg = "Could not load audio";
+              if (err) {
+                if (err.code === 1) msg = "Audio fetch aborted";
+                else if (err.code === 2) msg = "Network error loading audio";
+                else if (err.code === 3) msg = "Audio decoding error";
+                else if (err.code === 4) msg = "Audio format not supported or 404";
+              }
+              console.error(
+                `[Audio Engine] ❌ Audio track ${track.id} (${track.label}) failed: ${msg}`,
+                track.url,
+                err,
+              );
+              showSeekFeedback(`Audio error: ${msg}`);
+            });
+
+            audioEl.addEventListener("canplay", () => {
+              console.log(
+                `[Audio Engine] ✔ Audio track ${track.id} (${track.label}) buffered and ready.`,
+              );
+              if (activeAudio === audioEl && !player.paused() && audioEl.paused) {
+                playActiveAudio();
+              }
+            });
+
+            audioEl.addEventListener("seeked", () => {
+              console.log(
+                `[Audio Engine] Audio track ${track.id} (${track.label}) seeked to ${audioEl.currentTime.toFixed(2)}s.`,
+              );
+              if (activeAudio === audioEl && !player.paused() && audioEl.paused) {
+                playActiveAudio();
+              }
+            });
+
+            // Default first track (au1) as active
+            if (index === 0) {
+              activeAudio = audioEl;
+              activeTrackId = track.id;
+              activeAudio.volume = currentAudioVolume;
+              activeAudio.muted = currentAudioMuted;
+              console.log(
+                `[Audio Engine] Set default active audio: Track ${track.id} (${track.label})`,
+              );
+            } else {
+              audioEl.muted = true;
+              audioEl.volume = 0;
+            }
+          });
+        }
+
+        function playActiveAudio() {
+          if (!activeAudio || player.paused()) return;
+
+          activeAudio.muted = currentAudioMuted;
+          activeAudio.volume = currentAudioVolume;
+          activeAudio.playbackRate = player.playbackRate();
+
+          const vTime = player.currentTime();
+          if (
+            Number.isFinite(vTime) &&
+            vTime > 1.0 &&
+            !activeAudio.seeking &&
+            Math.abs(activeAudio.currentTime - vTime) > 1.5
+          ) {
+            console.log(
+              `[Audio Engine] Aligning audio time from ${activeAudio.currentTime.toFixed(2)}s to ${vTime.toFixed(2)}s before play`,
+            );
+            activeAudio.currentTime = vTime;
+          }
+
+          const playPromise = activeAudio.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                console.log(
+                  `[Audio Engine] ▶ Playing Track ${activeTrackId} at ${activeAudio.currentTime.toFixed(2)}s (Vol: ${(currentAudioVolume * 100).toFixed(0)}%, Muted: ${currentAudioMuted})`,
+                );
+              })
+              .catch((err) => {
+                console.warn(
+                  "[Audio Engine] ⏸ Playback waiting for user gesture or buffering:",
+                  err,
+                );
+              });
+          }
+        }
+
+        function switchAudioTrack(trackId) {
+          const selected = audioTracks.find((t) => t.id === trackId);
+          if (!selected) {
+            if (activeAudio) {
+              activeAudio.pause();
+              activeAudio.muted = true;
+            }
+            activeAudio = null;
+            activeTrackId = null;
+            updateAudioMenuUI();
+            console.log("[Audio Engine] External audio disabled/muted.");
+            showSeekFeedback("External Audio Disabled");
+            return;
+          }
+
+          if (activeAudio && activeAudio !== selected.el) {
+            activeAudio.pause();
+            activeAudio.muted = true;
+          }
+
+          activeAudio = selected.el;
+          activeTrackId = selected.id;
+
+          if (activeAudio) {
+            activeAudio.muted = currentAudioMuted;
+            activeAudio.volume = currentAudioVolume;
+            activeAudio.playbackRate = player.playbackRate();
+
+            const targetTime = player.currentTime();
+            if (
+              Number.isFinite(targetTime) &&
+              Math.abs(activeAudio.currentTime - targetTime) > 0.2
+            ) {
+              activeAudio.currentTime = targetTime;
+            }
+
+            console.log(
+              `[Audio Engine] 🔀 Switched to Track ${selected.id}: "${selected.label}" (${selected.lang}) at ${activeAudio.currentTime.toFixed(2)}s`,
+            );
+
+            if (!player.paused()) {
+              playActiveAudio();
+            }
+
+            showSeekFeedback(`Audio: ${selected.label}`);
+          }
+
+          updateAudioMenuUI();
+        }
+
+        /* ---------------------------------------------
+         * Video Quality Switcher Engine
+         * ------------------------------------------- */
+
+        let activeQualityId = qualities.length > 0 ? qualities[0].id : null;
+        if (qualities.length > 0 && videoUrl) {
+          const matched = qualities.find((q) => q.url === videoUrl);
+          if (matched) activeQualityId = matched.id;
+        }
+
+        let isSwitchingQuality = false;
+
+        function switchQuality(qualityId) {
+          const selected = qualities.find((q) => q.id === qualityId);
+          if (!selected || selected.id === activeQualityId) return;
+
+          const prevTime = player.currentTime() || 0;
+          const wasPaused = player.paused();
+          const prevRate = player.playbackRate() || 1.0;
+
+          console.log(
+            `[Quality Engine] Switching to "${selected.label}" at ${prevTime.toFixed(2)}s`,
+          );
+          activeQualityId = selected.id;
+          isSwitchingQuality = true;
+
+          showSeekFeedback(`Quality: ${selected.label}`);
+          updateQualityMenuUI();
+
+          if (activeAudio) {
+            activeAudio.pause();
+          }
+
+          let qMime = mimeType;
+          const lower = selected.url.toLowerCase();
+          if (lower.includes(".mp4")) {
+            qMime = "video/mp4";
+          } else if (lower.includes(".m3u8")) {
+            qMime = "application/x-mpegURL";
+          } else if (lower.includes(".mpd")) {
+            qMime = "application/dash+xml";
+          } else if (lower.includes(".webm")) {
+            qMime = "video/webm";
+          } else if (isMatroska(mimeType, selected.url)) {
+            qMime = "video/x-matroska";
+          }
+
+          assignSource(selected.url, qMime);
+
+          let restored = false;
+          const restoreState = () => {
+            if (restored) return;
+            restored = true;
+
+            player.off("loadedmetadata", restoreState);
+            player.off("canplay", restoreState);
+
+            if (Number.isFinite(prevTime) && prevTime > 0) {
+              player.currentTime(prevTime);
+              if (activeAudio) {
+                activeAudio.currentTime = prevTime;
+              }
+            }
+            player.playbackRate(prevRate);
+            enforceVideoMuted();
+
+            // Re-load subtitles if cleared by source change
+            if (subtitleTracks.length > 0) {
+              const currentTracks = player.remoteTextTracks();
+              if (!currentTracks || currentTracks.length === 0) {
+                subtitleTracks.forEach((t) => loadSubtitleTrack(player, t));
+              }
+            }
+
+            if (!wasPaused) {
+              player.play().catch(() => {});
+              if (activeAudio) {
+                playActiveAudio();
+              }
+            }
+
+            isSwitchingQuality = false;
+            console.log(
+              `[Quality Engine] Restored playback state at ${prevTime.toFixed(2)}s in "${selected.label}"`,
+            );
+          };
+
+          player.one("loadedmetadata", restoreState);
+          player.one("canplay", restoreState);
+          setTimeout(() => {
+            if (isSwitchingQuality) {
+              restoreState();
+            }
+          }, 1500);
+        }
+
+        function buildQualityControl() {
+          if (qualities.length <= 1) return;
+
+          const controlBarEl = player.controlBar && player.controlBar.el();
+          if (!controlBarEl) return;
+
+          const qualityBtnContainer = document.createElement("div");
+          qualityBtnContainer.className = "vjs-quality-control";
+          qualityBtnContainer.title = "Video Quality";
+
+          qualityBtnContainer.innerHTML = `
+            <button type="button" class="vjs-quality-btn" aria-label="Quality" title="Video Quality">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span class="vjs-quality-current-label">HD</span>
+            </button>
+            <div class="vjs-quality-menu">
+              <div class="vjs-quality-menu-title">Quality</div>
+              <div class="vjs-quality-menu-items"></div>
+            </div>
+          `;
+
+          const toggleBtn = qualityBtnContainer.querySelector(".vjs-quality-btn");
+          const menu = qualityBtnContainer.querySelector(".vjs-quality-menu");
+          const itemsContainer = qualityBtnContainer.querySelector(".vjs-quality-menu-items");
+          const labelSpan = qualityBtnContainer.querySelector(".vjs-quality-current-label");
+
+          toggleBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const aMenu = document.querySelector(".vjs-audio-menu");
+            if (aMenu) aMenu.classList.remove("show");
+            menu.classList.toggle("show");
+          });
+
+          document.addEventListener("click", (e) => {
+            if (!qualityBtnContainer.contains(e.target)) {
+              menu.classList.remove("show");
+            }
+          });
+
+          const audioBtn = controlBarEl.querySelector(".vjs-audio-track-control");
+          const fsButton = controlBarEl.querySelector(".vjs-fullscreen-control");
+          if (audioBtn) {
+            controlBarEl.insertBefore(qualityBtnContainer, audioBtn);
+          } else if (fsButton) {
+            controlBarEl.insertBefore(qualityBtnContainer, fsButton);
+          } else {
+            controlBarEl.appendChild(qualityBtnContainer);
+          }
+
+          window.__updateQualityMenuUI = function () {
+            itemsContainer.innerHTML = "";
+            const current = qualities.find((q) => q.id === activeQualityId) || qualities[0];
+            if (current && labelSpan) {
+              const match = current.label.match(/\b(\d{3,4}p|4K|2K|HD|SD)\b/i);
+              labelSpan.textContent = match ? match[1].toUpperCase() : current.label.slice(0, 6);
+            }
+
+            qualities.forEach((q) => {
+              const item = document.createElement("button");
+              item.type = "button";
+              item.className =
+                "vjs-quality-menu-item" +
+                (q.id === activeQualityId ? " active" : "");
+              item.innerHTML = `
+                <span>${escapeHtml(q.label)}</span>
+                <span class="check">✓</span>
+              `;
+              item.addEventListener("click", (e) => {
+                e.stopPropagation();
+                switchQuality(q.id);
+                menu.classList.remove("show");
+              });
+              itemsContainer.appendChild(item);
+            });
+          };
+
+          window.__updateQualityMenuUI();
+        }
+
+        function updateQualityMenuUI() {
+          if (typeof window.__updateQualityMenuUI === "function") {
+            window.__updateQualityMenuUI();
+          }
+        }
+
+        function buildAudioTrackControl() {
+          if (audioTracks.length === 0) return;
+
+          const controlBarEl = player.controlBar && player.controlBar.el();
+          if (!controlBarEl) return;
+
+          const audioBtnContainer = document.createElement("div");
+          audioBtnContainer.className = "vjs-audio-track-control";
+          audioBtnContainer.title = "Audio Tracks";
+
+          audioBtnContainer.innerHTML = `
+            <button type="button" class="vjs-audio-track-btn" aria-label="Audio Track" title="Audio Tracks">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+              </svg>
+            </button>
+            <div class="vjs-audio-menu">
+              <div class="vjs-audio-menu-title">Audio Tracks</div>
+              <div class="vjs-audio-menu-items"></div>
+            </div>
+          `;
+
+          const toggleBtn = audioBtnContainer.querySelector(
+            ".vjs-audio-track-btn",
+          );
+          const menu = audioBtnContainer.querySelector(".vjs-audio-menu");
+          const itemsContainer = audioBtnContainer.querySelector(
+            ".vjs-audio-menu-items",
+          );
+
+          toggleBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const qMenu = document.querySelector(".vjs-quality-menu");
+            if (qMenu) qMenu.classList.remove("show");
+            menu.classList.toggle("show");
+          });
+
+          document.addEventListener("click", (e) => {
+            if (!audioBtnContainer.contains(e.target)) {
+              menu.classList.remove("show");
+            }
+          });
+
+          const fsButton = controlBarEl.querySelector(
+            ".vjs-fullscreen-control",
+          );
+          if (fsButton) {
+            controlBarEl.insertBefore(audioBtnContainer, fsButton);
+          } else {
+            controlBarEl.appendChild(audioBtnContainer);
+          }
+
+          window.__updateAudioMenuUI = function () {
+            itemsContainer.innerHTML = "";
+            audioTracks.forEach((track) => {
+              const item = document.createElement("button");
+              item.type = "button";
+              item.className =
+                "vjs-audio-menu-item" +
+                (track.id === activeTrackId ? " active" : "");
+              item.innerHTML = `
+                <span>${escapeHtml(track.label)}</span>
+                <span style="display:flex;align-items:center;gap:6px;">
+                  <span class="vjs-audio-badge">${escapeHtml(track.lang.toUpperCase())}</span>
+                  <span class="check">✓</span>
+                </span>
+              `;
+              item.addEventListener("click", (e) => {
+                e.stopPropagation();
+                switchAudioTrack(track.id);
+                menu.classList.remove("show");
+              });
+              itemsContainer.appendChild(item);
+            });
+
+            const muteItem = document.createElement("button");
+            muteItem.type = "button";
+            muteItem.className =
+              "vjs-audio-menu-item" +
+              (activeTrackId === null ? " active" : "");
+            muteItem.innerHTML = `
+              <span>Mute External Audio</span>
+              <span class="check">✓</span>
+            `;
+            muteItem.addEventListener("click", (e) => {
+              e.stopPropagation();
+              switchAudioTrack(null);
+              menu.classList.remove("show");
+            });
+            itemsContainer.appendChild(muteItem);
+          };
+
+          window.__updateAudioMenuUI();
+        }
+
+        function updateAudioMenuUI() {
+          if (typeof window.__updateAudioMenuUI === "function") {
+            window.__updateAudioMenuUI();
+          }
+        }
+
+        function loadSubtitleTrack(playerInstance, trackInfo) {
+          const { url, lang, label, isDefault } = trackInfo;
+
+          if (url.toLowerCase().includes(".srt")) {
+            console.log(
+              `[Subtitles] Detected SRT format for "${label}". Converting to WebVTT...`,
+            );
+            fetch(url)
+              .then((res) => {
+                if (!res.ok) throw new Error("Failed to load SRT");
+                return res.text();
+              })
+              .then((srtContent) => {
+                const vttContent =
+                  "WEBVTT\n\n" +
+                  srtContent
+                    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2")
+                    .replace(/\r\n/g, "\n")
+                    .replace(/\r/g, "\n");
+                const blob = new Blob([vttContent], { type: "text/vtt" });
+                const blobUrl = URL.createObjectURL(blob);
+                playerInstance.addRemoteTextTrack(
+                  {
+                    kind: "subtitles",
+                    src: blobUrl,
+                    srclang: lang || "en",
+                    label:
+                      label || `Subtitle (${(lang || "en").toUpperCase()})`,
+                    default: !!isDefault,
+                  },
+                  false,
+                );
+                console.log(
+                  `[Subtitles] ✔ Successfully converted and loaded SRT for "${label}"`,
+                );
+              })
+              .catch((err) => {
+                console.warn(
+                  `[Subtitles] SRT conversion fetch failed, adding direct track:`,
+                  err,
+                );
+                playerInstance.addRemoteTextTrack(
+                  {
+                    kind: "subtitles",
+                    src: url,
+                    srclang: lang || "en",
+                    label:
+                      label || `Subtitle (${(lang || "en").toUpperCase()})`,
+                    default: !!isDefault,
+                  },
+                  false,
+                );
+              });
+          } else {
+            console.log(
+              `[Subtitles] Loading WebVTT subtitle track "${label}" (${lang})`,
+            );
+            playerInstance.addRemoteTextTrack(
+              {
+                kind: "subtitles",
+                src: url,
+                srclang: lang || "en",
+                label: label || `Subtitle (${(lang || "en").toUpperCase()})`,
+                default: !!isDefault,
+              },
+              false,
+            );
+          }
+        }
+
+        /* ---------------------------------------------
+         * Initialize Video.js
+         * ------------------------------------------- */
+
+        if (loadingText) {
+          loadingText.textContent = "Starting playback…";
+        }
+
+        player = videojs("videoPlayer", {
+          controls: true,
+
+          /*
+           * Force mute video element always; if external audio exists,
+           * our tech hook will bridge volume to external audio.
+           */
+          muted: audioTracks.length === 0,
+
+          /*
+           * Do not autoplay anything
+           */
+          autoplay: false,
+
+          /*
+           * We control dimensions ourselves.
+           */
+          fluid: false,
+
+          responsive: false,
+
+          preload: "auto",
+
+          playsinline: true,
+
+          liveui: true,
+
+          enableSourceset: true,
+
+          html5: {
+            nativeTextTracks: false,
+
+            nativeAudioTracks: false,
+
+            nativeVideoTracks: false,
+
+            vhs: {
+              overrideNative: true,
+
+              experimentalUseMMS: true,
+
+              llhls: true,
+
+              useNetworkInformationApi: true,
+            },
+          },
+
+          controlBar: {
+            playToggle: true,
+
+            volumePanel: {
+              inline: false,
+            },
+
+            currentTimeDisplay: true,
+
+            timeDivider: true,
+
+            durationDisplay: true,
+
+            progressControl: true,
+
+            pictureInPictureToggle: true,
+
+            subsCapsButton: true,
+
+            fullscreenToggle: true,
+          },
+        });
+
+        /* ---------------------------------------------
+         * Responsive sizing
+         *
+         * The player is always contained inside
+         * the viewport.
+         * ------------------------------------------- */
+
+        function resizePlayer() {
+          if (!player || player.isFullscreen()) {
+            return;
+          }
+
+          const viewportWidth = window.innerWidth;
+
+          const viewportHeight = window.innerHeight;
+
+          /*
+           * Default before metadata loads..
+           */
+          let aspectRatio = 16 / 9;
+
+          const videoWidth = player.videoWidth();
+
+          const videoHeight = player.videoHeight();
+
+          if (videoWidth > 0 && videoHeight > 0) {
+            aspectRatio = videoWidth / videoHeight;
+          }
+
+          let width = viewportWidth;
+
+          let height = width / aspectRatio;
+
+          /*
+           * If height exceeds viewport,
+           * constrain by height instead.
+           */
+          if (height > viewportHeight) {
+            height = viewportHeight;
+
+            width = height * aspectRatio;
+          }
+
+          /*
+           * Video.js dimensions.
+           */
+          player.width(Math.floor(width));
+
+          player.height(Math.floor(height));
+        }
+
+        window.addEventListener("resize", resizePlayer, {
+          passive: true,
+        });
+
+        window.addEventListener(
+          "orientationchange",
+          () => {
+            setTimeout(resizePlayer, 100);
+          },
+          {
+            passive: true,
+          },
+        );
+
+        /*
+         * Modern viewport changes,
+         * particularly useful on mobile browsers.
+         */
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", resizePlayer, {
+            passive: true,
+          });
+        }
+
+        /* ---------------------------------------------
+         * Load source
+         * ------------------------------------------- */
+
+        let triedSrcFallback = false;
+
+        function getTechElement() {
+          const tech = player.tech(true);
+
+          return tech && tech.el();
+        }
+
+        /*
+         * Match the VHS demo load path: set src once with
+         * preload=auto so the browser ranges in playable
+         * data instead of waiting forever for MKV cues.
+         */
+        function assignSource(url, type) {
+          player.preload("auto");
+
+          player.src({
+            src: url,
+            type,
+          });
+        }
+
+        player.ready(() => {
+          const playbackType = isMatroska(mimeType, videoUrl)
+            ? "video/x-matroska"
+            : mimeType;
+
+          assignSource(videoUrl, playbackType);
+
+          resizePlayer();
+
+          // Build Quality Changer button & menu if qualities are provided
+          if (qualities.length > 1) {
+            buildQualityControl();
+          }
+
+          // Hook Video.js tech volume/mute if external audio tracks exist
+          if (audioTracks.length > 0) {
+            initExternalAudio();
+            buildAudioTrackControl();
+
+            const tech = player.tech(true);
+            if (tech) {
+              tech.setVolume = function (val) {
+                currentAudioVolume = val;
+                if (activeAudio) activeAudio.volume = val;
+                if (tech.el()) {
+                  tech.el().volume = 0;
+                  tech.el().muted = true;
+                }
+                console.log(
+                  `[HDHub Player] 🔊 Volume set to ${(val * 100).toFixed(0)}%`,
+                );
+                player.trigger("volumechange");
+              };
+
+              tech.volume = function () {
+                return currentAudioVolume;
+              };
+
+              tech.setMuted = function (isMuted) {
+                currentAudioMuted = !!isMuted;
+                if (activeAudio) activeAudio.muted = !!isMuted;
+                if (tech.el()) {
+                  tech.el().volume = 0;
+                  tech.el().muted = true;
+                }
+                console.log(
+                  `[HDHub Player] 🔇 Mute toggled: ${isMuted ? "MUTED" : "UNMUTED"}`,
+                );
+                player.trigger("volumechange");
+              };
+
+              tech.muted = function () {
+                return currentAudioMuted;
+              };
+            }
+
+            // Ensure player controls start unmuted at full volume for external audio
+            player.volume(currentAudioVolume);
+            player.muted(currentAudioMuted);
+          }
+
+          enforceVideoMuted();
+
+          // Load remote subtitles
+          if (subtitleTracks.length > 0) {
+            subtitleTracks.forEach((track) => {
+              loadSubtitleTrack(player, track);
+            });
+          }
+        });
+
+        player.on("loadstart", () => {
+          console.log("[HDHub Player] Video loadstart event");
+          enforceVideoMuted();
+          if (loadingText) {
+            loadingText.textContent = "Starting playback…";
+          }
+
+          window.setTimeout(() => {
+            bootLoader.classList.add("hidden");
+          }, 1200);
+        });
+
+        player.on("loadedmetadata", () => {
+          console.log(
+            `[HDHub Player] Video metadata loaded (${player.videoWidth()}x${player.videoHeight()}, ${player.duration().toFixed(1)}s)`,
+          );
+          resizePlayer();
+          enforceVideoMuted();
+          bootLoader.classList.add("hidden");
+        });
+
+        player.on("loadeddata", () => {
+          enforceVideoMuted();
+          bootLoader.classList.add("hidden");
+        });
+
+        player.on("canplay", () => {
+          enforceVideoMuted();
+          bootLoader.classList.add("hidden");
+          buffering.classList.remove("show");
+        });
+
+        player.on("progress", () => {
+          if (player.readyState() >= 1) {
+            bootLoader.classList.add("hidden");
+          }
+        });
+
+        /* ---------------------------------------------
+         * Playback & External Audio Sync
+         * ------------------------------------------- */
+
+        let lastHardSeekTime = 0;
+
+        function syncAudioDrift() {
+          if (!activeAudio || player.paused() || activeAudio.paused) return;
+          if (activeAudio.seeking || activeAudio.readyState < 2) return;
+
+          const vTime = player.currentTime();
+          const aTime = activeAudio.currentTime;
+          if (!Number.isFinite(vTime) || !Number.isFinite(aTime)) return;
+
+          // Don't drift-sync during initial player startup
+          if (vTime < 1.0) return;
+
+          const diff = Math.abs(aTime - vTime);
+          const baseRate = player.playbackRate() || 1.0;
+          const now = Date.now();
+
+          // 1. Smooth sync for minor drift (0.2s - 1.5s) using micro-rate adjustments (no seeks / no silence)
+          if (diff > 0.2 && diff <= 1.5) {
+            if (aTime < vTime) {
+              activeAudio.playbackRate = baseRate * 1.06;
+            } else {
+              activeAudio.playbackRate = baseRate * 0.94;
+            }
+          } else if (diff <= 0.2) {
+            if (activeAudio.playbackRate !== baseRate) {
+              activeAudio.playbackRate = baseRate;
+            }
+          } else if (diff > 1.5) {
+            // 2. Hard seek only for major drift (> 1.5s) with a 2.5s cooldown guard
+            if (now - lastHardSeekTime > 2500) {
+              lastHardSeekTime = now;
+              console.log(
+                `[Audio Engine] ⏱ Major drift detected (${diff.toFixed(2)}s, Video=${vTime.toFixed(2)}s, Audio=${aTime.toFixed(2)}s) -> Re-syncing audio`,
+              );
+              activeAudio.currentTime = vTime;
+              activeAudio.playbackRate = baseRate;
+            }
+          }
+        }
+
+        player.on("play", () => {
+          console.log(
+            `[HDHub Player] ▶ Video 'play' event at ${player.currentTime().toFixed(2)}s`,
+          );
+          enforceVideoMuted();
+          playActiveAudio();
+        });
+
+        player.on("pause", () => {
+          console.log(
+            `[HDHub Player] ⏸ Video 'pause' event at ${player.currentTime().toFixed(2)}s`,
+          );
+          titleBar.classList.remove("faded");
+          if (activeAudio) {
+            activeAudio.pause();
+          }
+        });
+
+        player.on("volumechange", () => {
+          enforceVideoMuted();
+          if (activeAudio) {
+            activeAudio.volume = currentAudioVolume;
+            activeAudio.muted = currentAudioMuted;
+          }
+          console.log(
+            `[Audio Engine] 🔊 Volume set to ${Math.round(currentAudioVolume * 100)}% (Muted: ${currentAudioMuted})`,
+          );
+        });
+
+        player.on("ratechange", () => {
+          console.log(`[HDHub Player] Speed changed to ${player.playbackRate()}x`);
+          if (activeAudio) {
+            activeAudio.playbackRate = player.playbackRate();
+          }
+        });
+
+        player.on("timeupdate", syncAudioDrift);
+        window.setInterval(syncAudioDrift, 400);
+
+        // Click on player container guarantees audio starts if browser blocked async start
+        playerContainer.addEventListener("click", () => {
+          setTimeout(() => {
+            if (!player.paused() && activeAudio && activeAudio.paused) {
+              console.log("[Audio Engine] Resuming audio from user click gesture.");
+              playActiveAudio();
+            }
+          }, 60);
+        });
+
+        /* ---------------------------------------------
+         * Buffering
+         * ------------------------------------------- */
+
+        let stallTimer = null;
+
+        player.on("waiting", () => {
+          console.log(
+            `[HDHub Player] ⏳ Buffering / Waiting at ${player.currentTime().toFixed(2)}s`,
+          );
+          if (bootLoader.classList.contains("hidden")) {
+            buffering.classList.add("show");
+          }
+
+          if (activeAudio) {
+            activeAudio.pause();
+          }
+
+          window.clearTimeout(stallTimer);
+
+          stallTimer = window.setTimeout(() => {
+            const time = player.currentTime();
+
+            if (player.paused() || !Number.isFinite(time) || time <= 0) {
+              return;
+            }
+
+            player.currentTime(time + 0.001);
+          }, 6000);
+        });
+
+        player.on("seeking", () => {
+          console.log(
+            `[HDHub Player] ⏩ Seeking to ${player.currentTime().toFixed(2)}s`,
+          );
+          if (bootLoader.classList.contains("hidden")) {
+            buffering.classList.add("show");
+          }
+          if (activeAudio) {
+            activeAudio.currentTime = player.currentTime();
+          }
+        });
+
+        player.on("seeked", () => {
+          console.log(
+            `[HDHub Player] 🎯 Seeked completed at ${player.currentTime().toFixed(2)}s`,
+          );
+          buffering.classList.remove("show");
+          if (activeAudio) {
+            activeAudio.currentTime = player.currentTime();
+            if (!player.paused()) {
+              playActiveAudio();
+            }
+          }
+        });
+
+        player.on("useractive", () => {
+          titleBar.classList.remove("faded");
+        });
+
+        player.on("userinactive", () => {
+          if (!player.paused()) {
+            titleBar.classList.add("faded");
+          }
+        });
+
+        player.on("playing", () => {
+          console.log(
+            `[HDHub Player] ▶ Video 'playing' event at ${player.currentTime().toFixed(2)}s`,
+          );
+          window.clearTimeout(stallTimer);
+          buffering.classList.remove("show");
+          enforceVideoMuted();
+          playActiveAudio();
+        });
+
+        player.on("canplaythrough", () => {
+          buffering.classList.remove("show");
+        });
+
+        /* ---------------------------------------------
+         * Seek
+         * ------------------------------------------- */
+
+        function clamp(value, min, max) {
+          return Math.min(Math.max(value, min), max);
+        }
+
+        function seekBy(seconds) {
+          if (!player) {
+            return;
+          }
+
+          const current = player.currentTime();
+
+          const duration = player.duration();
+
+          if (!Number.isFinite(current)) {
+            return;
+          }
+
+          let next = current + seconds;
+
+          if (Number.isFinite(duration)) {
+            next = clamp(next, 0, duration);
+          } else {
+            next = Math.max(0, next);
+          }
+
+          const el = getTechElement();
+
+          if (el && typeof el.fastSeek === "function") {
+            el.fastSeek(next);
+          } else {
+            player.currentTime(next);
+          }
+
+          if (activeAudio) {
+            activeAudio.currentTime = next;
+          }
+
+          showSeekFeedback(seconds);
+        }
+
+        function showSeekFeedback(value) {
+          clearTimeout(seekToastTimer);
+
+          if (typeof value === "number") {
+            seekToast.textContent =
+              value > 0 ? `+${value} seconds` : `${value} seconds`;
+          } else {
+            seekToast.textContent = String(value);
+          }
+
+          seekToast.classList.add("show");
+
+          seekToastTimer = setTimeout(() => {
+            seekToast.classList.remove("show");
+          }, 800);
+        }
+
+        /* ---------------------------------------------
+         * Keyboard controls
+         * ------------------------------------------- */
+
+        document.addEventListener("keydown", (event) => {
+          if (!player) {
+            return;
+          }
+
+          const target = event.target;
+
+          if (
+            target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target?.isContentEditable
+          ) {
+            return;
+          }
+
+          switch (event.key) {
+            case "ArrowLeft":
+              event.preventDefault();
+
+              seekBy(-SEEK_SECONDS);
+
+              break;
+
+            case "ArrowRight":
+              event.preventDefault();
+
+              seekBy(SEEK_SECONDS);
+
+              break;
+
+            case "ArrowUp":
+              event.preventDefault();
+
+              player.volume(clamp(player.volume() + VOLUME_STEP, 0, 1));
+
+              player.muted(false);
+
+              break;
+
+            case "ArrowDown":
+              event.preventDefault();
+
+              player.volume(clamp(player.volume() - VOLUME_STEP, 0, 1));
+
+              break;
+
+            case " ":
+            case "k":
+            case "K":
+              event.preventDefault();
+
+              if (player.paused()) {
+                player.play().catch(() => {});
+              } else {
+                player.pause();
+              }
+
+              break;
+
+            case "m":
+            case "M":
+              event.preventDefault();
+
+              player.muted(!player.muted());
+
+              break;
+
+            case "f":
+            case "F":
+              event.preventDefault();
+
+              if (player.isFullscreen()) {
+                player.exitFullscreen();
+              } else {
+                player.requestFullscreen();
+              }
+
+              break;
+          }
+        });
+
+        /* ---------------------------------------------
+         * Mobile double tap
+         * ------------------------------------------- */
+
+        videoElement.addEventListener(
+          "pointerup",
+          (event) => {
+            /*
+             * Don't interfere with controls.
+             */
+            if (event.target.closest(".vjs-control-bar")) {
+              return;
+            }
+
+            const now = Date.now();
+
+            const rect = videoElement.getBoundingClientRect();
+
+            const x = event.clientX - rect.left;
+
+            const side = x < rect.width / 2 ? "left" : "right";
+
+            const isDoubleTap =
+              now - lastTapTime < DOUBLE_TAP_DELAY && side === lastTapSide;
+
+            if (isDoubleTap) {
+              if (side === "left") {
+                seekBy(-SEEK_SECONDS);
+              } else {
+                seekBy(SEEK_SECONDS);
+              }
+
+              lastTapTime = 0;
+              lastTapSide = null;
+
+              return;
+            }
+
+            lastTapTime = now;
+
+            lastTapSide = side;
+          },
+          {
+            passive: true,
+          },
+        );
+
+        /* ---------------------------------------------
+         * Fullscreen orientation
+         * ------------------------------------------- */
+
+        function lockLandscape() {
+          try {
+            if (
+              screen.orientation &&
+              typeof screen.orientation.lock === "function"
+            ) {
+              screen.orientation.lock("landscape").catch(() => {});
+            }
+          } catch {}
+        }
+
+        function unlockOrientation() {
+          try {
+            if (
+              screen.orientation &&
+              typeof screen.orientation.unlock === "function"
+            ) {
+              screen.orientation.unlock();
+            }
+          } catch {}
+        }
+
+        player.on("fullscreenchange", () => {
+          if (player.isFullscreen()) {
+            lockLandscape();
+          } else {
+            unlockOrientation();
+          }
+        });
+
+        videoElement.addEventListener("webkitbeginfullscreen", lockLandscape);
+
+        videoElement.addEventListener("webkitendfullscreen", unlockOrientation);
+
+        /* ---------------------------------------------
+         * Media Session
+         * ------------------------------------------- */
+
+        if (
+          "mediaSession" in navigator &&
+          typeof MediaMetadata !== "undefined"
+        ) {
+          try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: videoTitle,
+            });
+          } catch {}
+        }
+
+        /* ---------------------------------------------
+         * Errors
+         * ------------------------------------------- */
+
+        player.on("error", () => {
+          const error = player.error();
+          console.error("[HDHub Player] ❌ Video error occurred:", error);
+
+          const el = getTechElement();
+
+          if (
+            !triedSrcFallback &&
+            error?.code === 4 &&
+            el &&
+            !el.getAttribute("src") &&
+            !el.currentSrc
+          ) {
+            triedSrcFallback = true;
+
+            player.error(null);
+
+            errorScreen.classList.remove("show");
+
+            el.preload = "auto";
+
+            el.src = videoUrl;
+
+            return;
+          }
+
+          if (isMatroska(mimeType, videoUrl)) {
+            showError(
+              "This device cannot play this MKV",
+              "The player requested the file, but this browser could not decode Matroska (MKV). Try Chrome or Edge on desktop. 5.1 AC3/DTS audio and embedded MKV subtitles usually will not play. An MP4 version is more reliable.",
+            );
+
+            return;
+          }
+
+          showError(
+            "Playback error",
+
+            error?.message || "The video could not be loaded or played.",
+          );
+        });
+
+        /* ---------------------------------------------
+         * Cleanup
+         * ------------------------------------------- */
+
+        window.addEventListener("pagehide", () => {
+          unlockOrientation();
+
+          if (activeAudio) {
+            activeAudio.pause();
+          }
+
+          if (player && !player.isDisposed()) {
+            player.dispose();
+          }
+        });
+      })();
+    </script>
+  <!-- Cloudflare Pages Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "bb565b206f074e21b080e3c64eca4b89"}'></script><!-- Cloudflare Pages Analytics --></body>
+</html>
+

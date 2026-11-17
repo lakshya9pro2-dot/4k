@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/launcher",
+      "destination": "/launcher.html"
+    },
+    {
+      "source": "/play/:id",
+      "destination": "/api/hubcloud?play=:id"
+    },
+    {
+      "source": "/:id([0-9a-zA-Z_-]+)",
+      "destination": "/api/hubcloud?play=:id"
+    }
+  ]
+}

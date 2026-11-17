@@ -1,0 +1,85 @@
+{
+  "id": "6672",
+  "title": "test",
+  "mimeType": "video/x-matrosk",
+  "videoUrl": "https://cdn.videy.co/gzX5L28G1.mp4",
+  "qualities": [
+    {
+      "id": 1,
+      "label": "4K HDR",
+      "hubcloudId": "6rd1fa6fy66761f"
+    },
+    {
+      "id": 2,
+      "label": "1080p",
+      "hubcloudId": "ciudcwrxjfchbsh"
+    },
+    {
+      "id": 3,
+      "label": "720",
+      "hubcloudId": ""
+    },
+    {
+      "id": 4,
+      "label": "360",
+      "hubcloudId": ""
+    },
+    {
+      "id": 5,
+      "label": "120",
+      "hubcloudId": ""
+    }
+  ],
+  "audioTracks": [
+    {
+      "id": 1,
+      "label": "hindi",
+      "lang": "hi",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    },
+    {
+      "id": 2,
+      "label": "dfghj",
+      "lang": "en",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    },
+    {
+      "id": 3,
+      "label": "sdfg",
+      "lang": "ta",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    },
+    {
+      "id": 4,
+      "label": "sdfghm",
+      "lang": "te",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    }
+  ],
+  "subtitleTracks": [
+    {
+      "id": 1,
+      "label": "sdfghnmh",
+      "lang": "asgdf",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    },
+    {
+      "id": 2,
+      "label": "dfzgxhc",
+      "lang": "dgfhc",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    },
+    {
+      "id": 3,
+      "label": "sdzf",
+      "lang": "dfg",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    },
+    {
+      "id": 4,
+      "label": "dfc",
+      "lang": "sdf",
+      "url": "https://cdn.videy.co/gzX5L28G1.mp4"
+    }
+  ]
+}
