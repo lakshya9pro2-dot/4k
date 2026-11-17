@@ -692,7 +692,7 @@ function escapeHtml(str) {
 
 /**
  * Render loading HTML page for browser requests
- * Shows animated spinner & auto-redirects to hdhubplayer.html with all query params
+ * Shows Kineflex loader, resolves stream via ?play=<id>&format=json and redirects to the player
  */
 function renderLoadingHtml(mediaId) {
   return `<!DOCTYPE html>
@@ -718,10 +718,9 @@ body{background:#000;color:#fff;font-family:'Sora',system-ui,-apple-system,'Sego
 .ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(255,255,255,0),#fff);
   -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
   animation:spin 1.4s linear infinite}
-.logo{width:110px;height:110px;border-radius:50%;display:block;object-fit:cover;animation:glow 2.4s ease-in-out infinite}
+.logo{width:110px;height:110px;border-radius:50%;display:block;object-fit:cover}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes markIn{0%{transform:scale(0) rotate(-270deg);opacity:0}100%{transform:none;opacity:1}}
-@keyframes glow{0%,100%{box-shadow:0 0 14px 0 rgba(255,255,255,.35)}50%{box-shadow:0 0 42px 8px rgba(255,255,255,.55)}}
 
 /* text */
 .word{display:flex;font-weight:800;font-size:clamp(46px,11vw,84px);letter-spacing:-.02em;line-height:1}
@@ -737,6 +736,17 @@ body{background:#000;color:#fff;font-family:'Sora',system-ui,-apple-system,'Sego
 @keyframes run{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
 .status{margin:-14px 0 0;font-size:12px;letter-spacing:.3em;color:#777;text-transform:uppercase;opacity:0;animation:fade .6s 1.4s ease both}
 .status b{font-weight:300;display:inline-block;width:1.2em;text-align:left}
+
+/* media info + error */
+.media{display:flex;flex-direction:column;align-items:center;gap:8px;margin:-10px 0 0;max-width:min(480px,90vw)}
+.title{margin:0;font-weight:800;font-size:15px;line-height:1.4;color:#e5e5e5;overflow-wrap:anywhere;opacity:0;transition:opacity .4s}
+.title.on{opacity:1}
+.badge{font:12px ui-monospace,monospace;color:#cfcfcf;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:3px 8px;border-radius:6px}
+.badge:empty{display:none}
+.err{display:none;max-width:min(420px,90vw);background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#fca5a5;padding:12px 16px;border-radius:8px;font-size:13px;line-height:1.4}
+.retry{display:none;font:inherit;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#000;background:#fff;border:0;border-radius:6px;padding:9px 18px;cursor:pointer}
+.failed .bar,.failed .status{display:none}
+.failed .err,.failed .retry{display:block}
 @media (prefers-reduced-motion:reduce){.ring::before{animation-duration:6s}}
 </style>
 </head>
@@ -748,7 +758,10 @@ body{background:#000;color:#fff;font-family:'Sora',system-ui,-apple-system,'Sego
   </div>
   <p class="tag">WATCH · FLEX · REPEAT</p>
   <div class="bar"><i></i></div>
-  <p class="status">Loading<b id="dots"></b></p>
+  <div class="media"><p class="title" id="titleText"></p><span class="badge" id="mediaBadge"></span></div>
+  <p class="status"><span id="statusText">Loading</span><b id="dots"></b></p>
+  <div class="err" id="errorBox"></div>
+  <button class="retry" id="retryBtn" type="button">Retry</button>
 </div>
 
 <script>
@@ -768,6 +781,33 @@ window.hideLoader = ()=>{
   l.classList.add('done');
   setTimeout(()=>l.remove(),700);
 };
+
+// ---- server logic: resolve stream, then redirect to player ----
+// (and escape backticks/\${} inside the template literal)
+const mediaId = ${JSON.stringify(String(mediaId)).replace(/</g, "\\u003c")};
+const $ = id => document.getElementById(id);
+$('mediaBadge').textContent = mediaId ? '#' + mediaId : '';
+
+async function resolveAndPlay(){
+  $('loader').classList.remove('failed');
+  $('statusText').textContent = 'Resolving fastest server';
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 25000);
+  try{
+    if(!mediaId) throw new Error('Missing media id');
+    const res = await fetch(\`/api/hubcloud?play=\${encodeURIComponent(mediaId)}&format=json\`, {signal: ctrl.signal});
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.success || !data.playerUrl) throw new Error(data.error || 'No playable stream available');
+    if(data.title){ $('titleText').textContent = data.title; $('titleText').classList.add('on'); }
+    $('statusText').textContent = 'Launching player';
+    window.location.replace(data.playerUrl);
+  }catch(err){
+    $('errorBox').textContent = 'Failed to load video: ' + (err.name === 'AbortError' ? 'request timed out' : err.message);
+    $('loader').classList.add('failed');
+  }finally{ clearTimeout(t); }
+}
+$('retryBtn').addEventListener('click', resolveAndPlay);
+resolveAndPlay();
 </script>
 </body>
 </html>`;
