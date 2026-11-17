@@ -700,7 +700,7 @@ function renderLoadingHtml(mediaId) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kineflex Loading</title>
+<title>Kineflex</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;800&display=swap" rel="stylesheet">
 <style>
@@ -737,6 +737,17 @@ body{background:#000;color:#fff;font-family:'Sora',system-ui,-apple-system,'Sego
 @keyframes run{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
 .status{margin:-14px 0 0;font-size:12px;letter-spacing:.3em;color:#777;text-transform:uppercase;opacity:0;animation:fade .6s 1.4s ease both}
 .status b{font-weight:300;display:inline-block;width:1.2em;text-align:left}
+
+/* media info + error */
+.media{display:flex;flex-direction:column;align-items:center;gap:8px;margin:-10px 0 0;max-width:min(480px,90vw)}
+.title{margin:0;font-weight:800;font-size:15px;line-height:1.4;color:#e5e5e5;overflow-wrap:anywhere;opacity:0;transition:opacity .4s}
+.title.on{opacity:1}
+.badge{font:12px ui-monospace,monospace;color:#cfcfcf;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:3px 8px;border-radius:6px}
+.badge:empty{display:none}
+.err{display:none;max-width:min(420px,90vw);background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#fca5a5;padding:12px 16px;border-radius:8px;font-size:13px;line-height:1.4}
+.retry{display:none;font:inherit;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#000;background:#fff;border:0;border-radius:6px;padding:9px 18px;cursor:pointer}
+.failed .bar,.failed .status{display:none}
+.failed .err,.failed .retry{display:block}
 @media (prefers-reduced-motion:reduce){.ring::before{animation-duration:6s}}
 </style>
 </head>
@@ -748,7 +759,10 @@ body{background:#000;color:#fff;font-family:'Sora',system-ui,-apple-system,'Sego
   </div>
   <p class="tag">WATCH · FLEX · REPEAT</p>
   <div class="bar"><i></i></div>
-  <p class="status">Loading<b id="dots"></b></p>
+  <div class="media"><p class="title" id="titleText"></p><span class="badge" id="mediaBadge"></span></div>
+  <p class="status"><span id="statusText">Loading</span><b id="dots"></b></p>
+  <div class="err" id="errorBox"></div>
+  <button class="retry" id="retryBtn" type="button">Retry</button>
 </div>
 
 <script>
@@ -768,6 +782,34 @@ window.hideLoader = ()=>{
   l.classList.add('done');
   setTimeout(()=>l.remove(),700);
 };
+
+// ---- server logic: resolve stream, then redirect to player ----
+// SERVER TEMPLATE: replace the next line with  const mediaId = "${escapeHtml(mediaId)}";
+// (and escape backticks/${} inside the template literal)
+const mediaId = new URLSearchParams(location.search).get('id') || '';
+const $ = id => document.getElementById(id);
+$('mediaBadge').textContent = mediaId ? '#' + mediaId : '';
+
+async function resolveAndPlay(){
+  $('loader').classList.remove('failed');
+  $('statusText').textContent = 'Resolving fastest server';
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), 25000);
+  try{
+    if(!mediaId) throw new Error('Missing media id');
+    const res = await fetch(`/api/hubcloud?play=${encodeURIComponent(mediaId)}&format=json`, {signal: ctrl.signal});
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.success || !data.playerUrl) throw new Error(data.error || 'No playable stream available');
+    if(data.title){ $('titleText').textContent = data.title; $('titleText').classList.add('on'); }
+    $('statusText').textContent = 'Launching player';
+    window.location.replace(data.playerUrl);
+  }catch(err){
+    $('errorBox').textContent = 'Failed to load video: ' + (err.name === 'AbortError' ? 'request timed out' : err.message);
+    $('loader').classList.add('failed');
+  }finally{ clearTimeout(t); }
+}
+$('retryBtn').addEventListener('click', resolveAndPlay);
+resolveAndPlay();
 </script>
 </body>
 </html>`;
